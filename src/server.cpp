@@ -2,7 +2,6 @@
 #include <pthread.h>
 
 #include <vector>
-#include <boost/shared_ptr.hpp>
 
 #define EVTHREAD_USE_PTHREADS_IMPLEMENTED 1
 #include <event2/event.h>
@@ -10,6 +9,44 @@
 #include "server_config.hpp"
 #include "hash_table.hpp"
 
+template <typename T>
+class scoped_ptr {
+  // duty of delete
+public:
+  scoped_ptr(T* p)
+    : ptr_(p){ }
+  ~scoped_ptr() {
+    delete ptr_;
+  }
+  T* get() { return ptr_; }
+  const T* get() const { return ptr_; }
+  T& operator*() { return *ptr_; }
+  T* operator->() { return ptr_; }
+  const T& operator*() const { return *ptr_; }
+  const T* operator->() const { return ptr_; }
+private:
+  T* ptr_;
+};
+
+template <typename T>
+class const_ptr {
+  // duty of delete
+public:
+  const_ptr() :ptr_(NULL) {}
+  T* operator=(const scoped_ptr<T>& rhs) {
+    return ptr_ = rhs.get();
+  }
+  T* operator=(const T* rhs) {
+    return ptr_ = rhs;
+  }
+  const_ptr(T* p)
+    : ptr_(p){ }
+  ~const_ptr() { /* do nothing! */ }
+  const T& operator*() const { return *ptr_; }
+  const T* operator->() const { return ptr_; }
+private:
+  const T* ptr_;
+};
 
 struct shared_workingset {
   event_base* const base;
@@ -19,8 +56,7 @@ struct shared_workingset {
 };
 
 struct worker {
-  worker(int t)
-    :tid(t) {}
+  worker() {}
 
   void start() {
     pthread_create(&thread, NULL, worker::worker_main, this);
@@ -34,16 +70,15 @@ struct worker {
 
   // thread specific data
   pthread_t thread;
-  boost::shared_ptr<const shared_workingset> sws;
+  const_ptr<const shared_workingset> sws;
   int tid;
 };
 
 class cache_server {
 public:
   cache_server(const server_config& conf)
-    : workers_(conf.threads) {
-    sws_ = boost::shared_ptr<shared_workingset>
-        (new shared_workingset(event_base_new()));
+    :sws_(new shared_workingset(event_base_new())),
+     workers_(conf.threads) {
     for (size_t i = 0; i < conf.threads; ++i) {
       workers_[i].sws = sws_;
       workers_[i].start();
@@ -55,7 +90,7 @@ public:
     return true;
   }
   hash_table table_;
-  boost::shared_ptr<const shared_workingset> sws_;
+  scoped_ptr<const shared_workingset> sws_;
   std::vector<worker> workers_;
 };
 

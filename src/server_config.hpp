@@ -11,6 +11,12 @@ struct server_config {
     p.add<uint16_t>("port", 'p', "Use port", false, 11211);
     p.add<size_t>("sockets", 's', "CPU sockets", false, 1);
     p.add<size_t>("verbose", 'v', "Verbosity", false, 1);
+    p.parse_check(argc, argv);
+    threads = p.get<size_t>("threads");
+    max_memory = p.get<size_t>("max-memory");
+    port = p.get<uint16_t>("port");
+    cpu_sockets = p.get<size_t>("sockets");
+    verbose = p.get<size_t>("verbose");
   }
   size_t threads;
   size_t max_memory;  // MegaBytes
